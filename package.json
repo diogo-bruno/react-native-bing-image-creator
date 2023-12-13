@@ -3,8 +3,8 @@
   "version": "0.0.1",
   "description": "A simple integration with web bing-image-creator",
   "license": "MIT",
-  "main": "src/bing-image-creator.tsx",
-  "types": "src/bing-image-creator.tsx",
+  "main": "src/BingImageCreator.tsx",
+  "types": "src/BingImageCreator.tsx",
   "keywords": [
     "react-native",
     "react-native-bing-image-creator",

@@ -2,6 +2,8 @@ import React from 'react';
 import WebView from 'react-native-webview';
 
 export interface WebAppProps {
+  currentUri: string;
+  setCurrentUri: any;
   setWebviewSession: any;
   loggiEnabled: any;
   styles: any;
@@ -14,6 +16,8 @@ export interface WebAppProps {
 }
 
 export function WebApp({
+  currentUri,
+  setCurrentUri,
   setWebviewSession,
   loggiEnabled,
   styles,
@@ -30,14 +34,15 @@ export function WebApp({
       ref={setWebviewSession}
       style={loggiEnabled ? styles.container : undefined}
       source={{
-        uri: `https://www.bing.com/images/create/?${new Date().getTime()}`,
+        uri: currentUri || `https://www.bing.com/images/create/`,
       }}
       onLoadEnd={() => startImageProcessing()}
       onNavigationStateChange={(event) => {
-        console.log(event.url);
         if (event.url.startsWith('https://login.live.com/')) {
+          setCurrentUri(event.url);
           setLoggiEnabled(true);
         } else {
+          setCurrentUri('');
           setLoggiEnabled(false);
         }
       }}

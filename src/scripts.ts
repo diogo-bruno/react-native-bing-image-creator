@@ -1,9 +1,9 @@
 export const ScriptStartCreateImages = (message: string) => {
   return `function ___setSearchText(text) {
-    if (!document.querySelector('[name="q"]')) {
+    if (!document.querySelector('[name="q"]') || !window.location.href.startsWith('https://www.bing.com/images/create/')) {
       setTimeout(() => {
         ___setSearchText(text);
-      });
+      }, 500);
       return;
     }
     const textarea = document.querySelector('[name="q"]');

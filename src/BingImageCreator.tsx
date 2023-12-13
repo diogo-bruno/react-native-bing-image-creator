@@ -30,6 +30,8 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
   const [loggiEnabled, setLoggiEnabled] = React.useState<boolean>(false);
   const [message, setMessage] = React.useState<string>('');
 
+  const [currentUri, setCurrentUri] = React.useState<string>('');
+
   const [responseImagesResolve, setResponseImagesResolve] = React.useState<(value: any) => void>();
   const [responseImagesReject, setResponseImagesReject] = React.useState<(reason?: any) => void>();
 
@@ -97,6 +99,8 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
           <Text style={styles.title}>Login Bing</Text>
           <View style={styles.separator}></View>
           <WebApp
+            currentUri={currentUri}
+            setCurrentUri={setCurrentUri}
             setWebviewSession={setWebviewSession}
             loggiEnabled={loggiEnabled}
             styles={styles}
@@ -113,6 +117,8 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
       {message?.length > 0 && !loggiEnabled && (
         <View style={styles.displayNone}>
           <WebApp
+            currentUri={currentUri}
+            setCurrentUri={setCurrentUri}
             setWebviewSession={setWebviewSession}
             loggiEnabled={loggiEnabled}
             styles={styles}

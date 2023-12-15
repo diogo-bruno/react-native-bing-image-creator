@@ -10,12 +10,16 @@ The "react-native-bing-image-creator" plugin provides an API with the real funct
 
 # Example
 
+## Install Lib required
 ```ssh
-npm install https://github.com/diogo-bruno/react-native-bing-image-creator.git
-or
-yarn add https://github.com/diogo-bruno/react-native-bing-image-creator.git
+npm install react-native-webview
 ```
 
+```ssh
+npm install https://github.com/diogo-bruno/react-native-bing-image-creator.git
+```
+
+## Code example
 ```javascript
 import React from 'react';
 import { Alert, Button, Image, StyleSheet, View } from 'react-native';
@@ -28,7 +32,11 @@ export default function AppBingImageCreator() {
 
   const getTextInput = async (): Promise<string> => {
     return new Promise((resolve) => {
+      // ios Alert input (not working Android)
       Alert.prompt('Search', 'Type something', [{ text: 'OK', onPress: (value) => resolve(`${value}`) }], 'plain-text');
+
+      // if Android:
+      // resolve('Text here')
     });
   };
 

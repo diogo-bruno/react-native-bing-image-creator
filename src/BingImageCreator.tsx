@@ -1,11 +1,13 @@
 import React, { forwardRef, useImperativeHandle } from 'react';
-import { Dimensions, Modal, Platform, StyleSheet, View, Text } from 'react-native';
+import { Dimensions, Modal, Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { ScriptStartCreateImages, sleep } from './scripts';
-import { WebApp } from './WebApp.tsx';
+import { ScriptGetImages, ScriptIsLogged, ScriptLogin, ScriptLogout, ScriptStartCreateImages, sleep } from './scripts';
 
 export interface BingImageCreatorRef {
-  getImages: (message: string) => Promise<string[]>;
+  getImages: (message: string) => Promise<{ error: boolean; message: string; images: string[] }>;
+  isLogged: () => Promise<boolean>;
+  loginBingMicrosoft: () => Promise<{ error: boolean; message: string }>;
+  logoutBingMicrosoft: () => Promise<{ error: boolean; message: string }>;
 }
 
 interface BingImageCreatorProps {}
@@ -24,59 +26,151 @@ const JSONtryParse = (text: string) => {
   }
 };
 
+const urlBingImageCreator = 'https://www.bing.com/images/create/';
+
 const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => {
   const [webviewSession, setWebviewSession] = React.useState<WebView | null>(null);
 
-  const [loggiEnabled, setLoggiEnabled] = React.useState<boolean>(false);
-  const [message, setMessage] = React.useState<string>('');
+  const [webviewLogin, setWebviewLogin] = React.useState<WebView | null>(null);
 
-  const [currentUri, setCurrentUri] = React.useState<string>('');
+  const [modalLogin, setModalLogin] = React.useState<boolean>(false);
 
-  const [responseImagesResolve, setResponseImagesResolve] = React.useState<(value: any) => void>();
-  const [responseImagesReject, setResponseImagesReject] = React.useState<(reason?: any) => void>();
+  const [pageLoginVisible, setPageLoginVisible] = React.useState<boolean>(false);
+
+  const [logged, setLogged] = React.useState<boolean>();
+
+  const [responseImagesResolve, setResponseImagesResolve] = React.useState<(value: { error: boolean; message: string; images: string[] }) => void>();
+
+  const [loginResolve, setLoginResolve] = React.useState<(value: any) => void>();
+
+  const [logoutResolve, setLogoutResolve] = React.useState<(value: unknown) => void>();
 
   const messageRecived = (event: any) => {
     try {
       const data = event.nativeEvent.data;
       const responseData = JSONtryParse(data);
-      setMessage('');
-      setLoggiEnabled(false);
 
-      if (responseData && responseData.images) {
-        responseData.images = responseData.images.map((image: string) => {
-          return image.replace('w=1', 'w=9').replace('h=1', 'h=9');
-        });
-      }
+      if (responseData) {
+        if (responseData.logged === true) {
+          setLogged(true);
+          if (loginResolve) loginResolve({ error: false, message: 'Logged' });
+          setModalLogin(false);
+        } else if (responseData.logged === false) {
+          setLogged(false);
+          if (logoutResolve) logoutResolve({ error: false, message: 'Logout success' });
+          if (loginResolve) loginResolve({ error: true, message: 'Not Logged' });
+        }
 
-      if (responseImagesResolve && responseData.images) {
-        responseImagesResolve(responseData.images);
-        resetFunctionsResponseImages();
+        if (responseImagesResolve && responseData.errorGetImages) {
+          responseImagesResolve({ error: true, message: responseData.errorGetImages, images: [] });
+          resetFunctionsResponseImages();
+        }
+
+        if (responseImagesResolve && responseData.images) {
+          responseData.images = responseData.images.map((image: string) => {
+            return image.replace('w=1', 'w=9').replace('h=1', 'h=9');
+          });
+          responseImagesResolve({ error: false, message: '', images: responseData.images });
+          resetFunctionsResponseImages();
+        }
       }
     } catch (error) {
       console.error(error);
+      if (responseImagesResolve) responseImagesResolve({ error: true, message: JSON.stringify(error), images: [] });
     }
   };
 
   const resetFunctionsResponseImages = () => {
     setResponseImagesResolve(undefined);
-    setResponseImagesReject(undefined);
   };
 
-  const startImageProcessing = async () => {
+  const startImageProcessing = async (currentMessage: string) => {
     await sleep(500);
 
-    webviewSession?.injectJavaScript(ScriptStartCreateImages(message));
+    webviewSession?.injectJavaScript(ScriptStartCreateImages(currentMessage));
   };
 
   useImperativeHandle(ref, () => ({
+    isLogged: () => {
+      return new Promise((resolve) => {
+        webviewSession?.requestFocus();
+
+        while (!webviewSession || logged === undefined) {
+          sleep(100);
+        }
+
+        if (logged) resolve(true);
+        else resolve(false);
+      });
+    },
     getImages: (currentMessage: string) => {
-      return new Promise(async (resolve, reject) => {
+      return new Promise(async (resolve) => {
+        while (!webviewSession) {
+          sleep(100);
+        }
+
+        if (!logged) {
+          resolve({ error: true, message: 'Login required' });
+          return;
+        }
+
+        webviewSession?.requestFocus();
+        webviewSession?.injectJavaScript(`window.location.href = '${urlBingImageCreator}';`);
+
         resetFunctionsResponseImages();
 
         setResponseImagesResolve(() => (value: any) => resolve(value));
-        setResponseImagesReject(() => (value: any) => reject(value));
 
-        setMessage(currentMessage);
+        await sleep(500);
+
+        startImageProcessing(currentMessage);
+      });
+    },
+    loginBingMicrosoft: () => {
+      return new Promise(async (resolve) => {
+        while (!webviewSession) {
+          sleep(100);
+        }
+
+        if (logged) {
+          resolve({ error: false, message: 'Already logged' });
+          return;
+        }
+
+        if (webviewLogin) webviewLogin.reload();
+
+        await sleep(500);
+
+        setPageLoginVisible(false);
+
+        setLoginResolve(() => (value: any) => resolve(value));
+
+        setModalLogin(true);
+      });
+    },
+    logoutBingMicrosoft: () => {
+      return new Promise(async (resolve) => {
+        while (!webviewSession) {
+          sleep(100);
+        }
+
+        if (!logged) {
+          resolve({ error: false, message: 'Already not logged' });
+          return;
+        }
+
+        setLogoutResolve(() => (value: any) => resolve(value));
+
+        if (webviewLogin) webviewLogin.reload();
+
+        if (webviewLogin) webviewLogin.injectJavaScript(ScriptLogout());
+        if (webviewSession) webviewSession.injectJavaScript(ScriptLogout());
+
+        setTimeout(() => {
+          setLogged(false);
+
+          if (logoutResolve) logoutResolve({ error: false, message: 'Logout success' });
+        }, 1500);
       });
     },
   }));
@@ -86,51 +180,68 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
       <Modal
         presentationStyle="pageSheet"
         animationType="slide"
-        visible={loggiEnabled}
+        visible={modalLogin}
         style={{ zIndex: 1100 }}
         statusBarTranslucent={true}
         onRequestClose={() => {
-          setLoggiEnabled(false);
-          setMessage('');
-          if (responseImagesReject) responseImagesReject({ error: 'Error cancel login' });
+          if (loginResolve) loginResolve({ error: true, message: 'Error cancel login' });
+          setModalLogin(false);
         }}
       >
         <View style={styles.modalContainer}>
           <Text style={styles.title}>Login Bing</Text>
           <View style={styles.separator}></View>
-          <WebApp
-            currentUri={currentUri}
-            setCurrentUri={setCurrentUri}
-            setWebviewSession={setWebviewSession}
-            loggiEnabled={loggiEnabled}
-            styles={styles}
-            startImageProcessing={startImageProcessing}
-            setLoggiEnabled={setLoggiEnabled}
-            responseImagesReject={responseImagesReject}
+          <WebView
+            startInLoadingState={true}
+            ref={setWebviewLogin}
+            style={pageLoginVisible ? styles.container : undefined}
+            source={{ uri: urlBingImageCreator }}
+            onLoadEnd={() => webviewLogin?.injectJavaScript(ScriptLogin())}
+            onNavigationStateChange={(event) => {
+              if (event.url.startsWith('https://login.live.com/')) {
+                setTimeout(() => {
+                  setPageLoginVisible(true);
+                }, 500);
+              } else {
+                setPageLoginVisible(false);
+              }
+
+              webviewLogin?.injectJavaScript(ScriptIsLogged());
+            }}
+            onError={() => {
+              if (loginResolve) loginResolve({ error: true, message: 'Error on Login https://www.bing.com/images/create/' });
+            }}
+            javaScriptEnabled={true}
             userAgent={userAgent}
             originWhitelist={originWhitelist}
-            messageRecived={messageRecived}
+            onMessage={messageRecived}
+            webviewDebuggingEnabled={true}
           />
         </View>
       </Modal>
 
-      {message?.length > 0 && !loggiEnabled && (
-        <View style={styles.displayNone}>
-          <WebApp
-            currentUri={currentUri}
-            setCurrentUri={setCurrentUri}
-            setWebviewSession={setWebviewSession}
-            loggiEnabled={loggiEnabled}
-            styles={styles}
-            startImageProcessing={startImageProcessing}
-            setLoggiEnabled={setLoggiEnabled}
-            responseImagesReject={responseImagesReject}
-            userAgent={userAgent}
-            originWhitelist={originWhitelist}
-            messageRecived={messageRecived}
-          />
-        </View>
-      )}
+      <View style={styles.displayNone}>
+        <WebView
+          style={styles.container}
+          startInLoadingState={false}
+          ref={setWebviewSession}
+          source={{ uri: urlBingImageCreator }}
+          onLoadEnd={async () => {
+            webviewSession?.injectJavaScript(ScriptIsLogged());
+
+            if (responseImagesResolve) webviewSession?.injectJavaScript(ScriptGetImages());
+          }}
+          onNavigationStateChange={async (event) => {}}
+          onError={() => {
+            if (responseImagesResolve) responseImagesResolve({ error: true, message: 'Error on https://www.bing.com/images/create/', images: [] });
+          }}
+          javaScriptEnabled={true}
+          userAgent={userAgent}
+          originWhitelist={originWhitelist}
+          onMessage={messageRecived}
+          webviewDebuggingEnabled={true}
+        />
+      </View>
     </View>
   );
 });

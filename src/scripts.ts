@@ -1,6 +1,8 @@
 export const ScriptStartCreateImages = (message: string) => {
   return `  
+  
   function ___setSearchText(text) {
+
     try {
       if (!document.querySelector('[name="q"]') || !window.location.href.startsWith('https://www.bing.com/images/create')) {
         setTimeout(() => {
@@ -16,7 +18,7 @@ export const ScriptStartCreateImages = (message: string) => {
       textarea.dispatchEvent(event);
   
       setTimeout(() => {
-        document.querySelector('#create_btn_c').click();
+        document.querySelector('#create_btn_c').click();        
         ___setSearchText = () => {};
       }, 1000);
     } catch (error) {
@@ -35,12 +37,12 @@ export const ScriptGetImages = () => {
   
   function ___getImages() {
     if (___getImagesCount > 160) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ errorGetImages: 'Timeout occurred' }));
+      window.ReactNativeWebView?.postMessage(JSON.stringify({ errorGetImages: 'Timeout occurred' }));
       return;
     }
 
     if (document.querySelector('#girer')) {
-      window.ReactNativeWebView.postMessage(JSON.stringify({ errorGetImages: document.querySelector('#girer').innerText }));
+      window.ReactNativeWebView?.postMessage(JSON.stringify({ errorGetImages: document.querySelector('#girer').innerText }));
     }
 
     if (!document.querySelectorAll('#gir_async img')?.length) {
@@ -59,7 +61,7 @@ export const ScriptGetImages = () => {
       }
     });
 
-    window.ReactNativeWebView.postMessage(JSON.stringify({ images: images }));
+    window.ReactNativeWebView?.postMessage(JSON.stringify({ images: images }));
   }
 
   ___getImages();
@@ -69,7 +71,8 @@ export const ScriptGetImages = () => {
 export const ScriptLogin = () => {
   return `function Login___() {
     if (document.querySelector('#create_btn_c')) {
-      document.querySelector('#bic_signin a').click();
+      document.querySelector('#bic_signin a')?.click();
+      document.querySelector('#create_btn_c')?.click();
     } else {
       setTimeout(function () {
         Login___();
@@ -90,9 +93,9 @@ export const ScriptIsLogged = () => {
   function __checkLogin() {
     if (document.querySelector('[name="q"]') && getCookie__('_U')) {
       clearInterval(___scriptIntervalCheckLogin);
-      window.ReactNativeWebView.postMessage(JSON.stringify({ logged: true }));
+      window.ReactNativeWebView?.postMessage(JSON.stringify({ logged: true }));
     } else if(document.querySelector('[name="q"]') && !getCookie__('_U')){
-      window.ReactNativeWebView.postMessage(JSON.stringify({ logged: false }));
+      window.ReactNativeWebView?.postMessage(JSON.stringify({ logged: false }));
     }
   }
 
@@ -121,4 +124,12 @@ export const ScriptLogout = () => {
 
 export const sleep = (ms: number) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+export const JSONtryParse = (text: string) => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 };

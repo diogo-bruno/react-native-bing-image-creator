@@ -1,7 +1,7 @@
 import React, { forwardRef, useImperativeHandle } from 'react';
 import { Dimensions, Modal, Platform, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import { ScriptGetImages, ScriptIsLogged, ScriptLogin, ScriptLogout, ScriptStartCreateImages, sleep } from './scripts';
+import { JSONtryParse, ScriptGetImages, ScriptIsLogged, ScriptLogin, ScriptLogout, ScriptStartCreateImages, sleep } from './scripts';
 
 export interface BingImageCreatorRef {
   getImages: (message: string) => Promise<{ error: boolean; message: string; images: string[] }>;
@@ -15,16 +15,8 @@ interface BingImageCreatorProps {}
 const originWhitelist = ['https://*'];
 const userAgent =
   Platform.OS === 'ios'
-    ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1'
+    ? 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1.2 Mobile/15E148 Safari/604.1'
     : 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.5790.166 Mobile Safari/537.36';
-
-const JSONtryParse = (text: string) => {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-};
 
 const urlBingImageCreator = 'https://www.bing.com/images/create/';
 
@@ -45,6 +37,8 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
 
   const [logoutResolve, setLogoutResolve] = React.useState<(value: unknown) => void>();
 
+  const [currentMessage, setCurrentMessage] = React.useState<string>('');
+
   const messageRecived = (event: any) => {
     try {
       const data = event.nativeEvent.data;
@@ -58,7 +52,7 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
         } else if (responseData.logged === false) {
           setLogged(false);
           if (logoutResolve) logoutResolve({ error: false, message: 'Logout success' });
-          if (loginResolve) loginResolve({ error: true, message: 'Not Logged' });
+          //if (loginResolve) loginResolve({ error: true, message: 'Not Logged' });
         }
 
         if (responseImagesResolve && responseData.errorGetImages) {
@@ -76,7 +70,10 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
       }
     } catch (error) {
       console.error(error);
-      if (responseImagesResolve) responseImagesResolve({ error: true, message: JSON.stringify(error), images: [] });
+      if (responseImagesResolve) {
+        responseImagesResolve({ error: true, message: JSON.stringify(error), images: [] });
+        resetFunctionsResponseImages();
+      }
     }
   };
 
@@ -84,32 +81,37 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
     setResponseImagesResolve(undefined);
   };
 
-  const startImageProcessing = async (currentMessage: string) => {
-    await sleep(500);
-
-    webviewSession?.injectJavaScript(ScriptStartCreateImages(currentMessage));
+  const getValueIsLogged = async () => {
+    return new Promise((resolve) => {
+      setLogged((currentValue) => {
+        resolve(currentValue);
+        return currentValue;
+      });
+    });
   };
 
   useImperativeHandle(ref, () => ({
     isLogged: () => {
-      return new Promise((resolve) => {
+      return new Promise(async (resolve) => {
         webviewSession?.requestFocus();
 
-        while (!webviewSession || logged === undefined) {
-          sleep(100);
+        while (!webviewSession || (await getValueIsLogged()) === undefined) {
+          await sleep(500);
         }
 
-        if (logged) resolve(true);
+        if (await getValueIsLogged()) resolve(true);
         else resolve(false);
       });
     },
-    getImages: (currentMessage: string) => {
+    getImages: (message: string) => {
       return new Promise(async (resolve) => {
         while (!webviewSession) {
-          sleep(100);
+          await sleep(100);
         }
 
-        if (!logged) {
+        resetFunctionsResponseImages();
+
+        if (!(await getValueIsLogged())) {
           resolve({ error: true, message: 'Login required' });
           return;
         }
@@ -117,22 +119,18 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
         webviewSession?.requestFocus();
         webviewSession?.injectJavaScript(`window.location.href = '${urlBingImageCreator}';`);
 
-        resetFunctionsResponseImages();
-
         setResponseImagesResolve(() => (value: any) => resolve(value));
 
-        await sleep(500);
-
-        startImageProcessing(currentMessage);
+        setCurrentMessage(message);
       });
     },
     loginBingMicrosoft: () => {
       return new Promise(async (resolve) => {
         while (!webviewSession) {
-          sleep(100);
+          await sleep(100);
         }
 
-        if (logged) {
+        if (await getValueIsLogged()) {
           resolve({ error: false, message: 'Already logged' });
           return;
         }
@@ -151,10 +149,10 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
     logoutBingMicrosoft: () => {
       return new Promise(async (resolve) => {
         while (!webviewSession) {
-          sleep(100);
+          await sleep(100);
         }
 
-        if (!logged) {
+        if (!(await getValueIsLogged())) {
           resolve({ error: false, message: 'Already not logged' });
           return;
         }
@@ -229,11 +227,21 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
           onLoadEnd={async () => {
             webviewSession?.injectJavaScript(ScriptIsLogged());
 
-            if (responseImagesResolve) webviewSession?.injectJavaScript(ScriptGetImages());
+            if (responseImagesResolve && logged) {
+              setCurrentMessage((message) => {
+                webviewSession?.injectJavaScript(ScriptStartCreateImages(currentMessage ?? message));
+                return message;
+              });
+              
+              webviewSession?.injectJavaScript(ScriptGetImages());
+            }
           }}
           onNavigationStateChange={async (event) => {}}
           onError={() => {
-            if (responseImagesResolve) responseImagesResolve({ error: true, message: 'Error on https://www.bing.com/images/create/', images: [] });
+            if (responseImagesResolve) {
+              responseImagesResolve({ error: true, message: 'Error on https://www.bing.com/images/create/', images: [] });
+              resetFunctionsResponseImages();
+            }
           }}
           javaScriptEnabled={true}
           userAgent={userAgent}

@@ -31,7 +31,10 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
 
   const [logged, setLogged] = React.useState<boolean>();
 
-  const [responseImagesResolve, setResponseImagesResolve] = React.useState<(value: { error: boolean; message: string; images: string[] }) => void>();
+  const [creatingInProgress, setCreatingInProgress] = React.useState<boolean>();
+
+  const [responseImagesResolve, setResponseImagesResolve] =
+    React.useState<(value: { error: boolean; message: string; images: string[] } | undefined) => void>();
 
   const [loginResolve, setLoginResolve] = React.useState<(value: any) => void>();
 
@@ -52,7 +55,6 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
         } else if (responseData.logged === false) {
           setLogged(false);
           if (logoutResolve) logoutResolve({ error: false, message: 'Logout success' });
-          //if (loginResolve) loginResolve({ error: true, message: 'Not Logged' });
         }
 
         if (responseImagesResolve && responseData.errorGetImages) {
@@ -79,6 +81,7 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
 
   const resetFunctionsResponseImages = () => {
     setResponseImagesResolve(undefined);
+    setCreatingInProgress(undefined);
   };
 
   const getValueIsLogged = async () => {
@@ -93,8 +96,6 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
   useImperativeHandle(ref, () => ({
     isLogged: () => {
       return new Promise(async (resolve) => {
-        webviewSession?.requestFocus();
-
         while (!webviewSession || (await getValueIsLogged()) === undefined) {
           await sleep(500);
         }
@@ -116,12 +117,11 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
           return;
         }
 
-        webviewSession?.requestFocus();
-        webviewSession?.injectJavaScript(`window.location.href = '${urlBingImageCreator}';`);
+        if (currentMessage !== message) setCurrentMessage(message);
 
         setResponseImagesResolve(() => (value: any) => resolve(value));
 
-        setCurrentMessage(message);
+        webviewSession?.injectJavaScript(`window.sessionStorage.setItem("creating",""); window.location.assign('${urlBingImageCreator}');`);
       });
     },
     loginBingMicrosoft: () => {
@@ -227,12 +227,13 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
           onLoadEnd={async () => {
             webviewSession?.injectJavaScript(ScriptIsLogged());
 
-            if (responseImagesResolve && logged) {
+            if (responseImagesResolve && logged && !creatingInProgress) {
               setCurrentMessage((message) => {
-                webviewSession?.injectJavaScript(ScriptStartCreateImages(currentMessage ?? message));
+                setCreatingInProgress(true);
+                webviewSession?.injectJavaScript(ScriptStartCreateImages(message));
                 return message;
               });
-              
+
               webviewSession?.injectJavaScript(ScriptGetImages());
             }
           }}

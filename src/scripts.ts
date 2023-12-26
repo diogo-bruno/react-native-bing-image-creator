@@ -2,23 +2,28 @@ export const ScriptStartCreateImages = (message: string) => {
   return `  
   
   function ___setSearchText(text) {
-
     try {
+      window.sessionStorage.setItem('creating', 'true');
+  
       if (!document.querySelector('[name="q"]') || !window.location.href.startsWith('https://www.bing.com/images/create')) {
         setTimeout(() => {
           ___setSearchText(text);
-        }, 500);
+        }, 1000);
+        return;
+      }
+  
+      if (window.location.href.indexOf('create?q=') > -1) {
         return;
       }
   
       const textarea = document.querySelector('[name="q"]');
-      var nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+      const nativeTextAreaValueSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
       nativeTextAreaValueSetter.call(textarea, text);
       const event = new Event('input', { bubbles: true });
       textarea.dispatchEvent(event);
   
       setTimeout(() => {
-        document.querySelector('#create_btn_c').click();        
+        document.querySelector('#create_btn_c').click();
         ___setSearchText = () => {};
       }, 1000);
     } catch (error) {
@@ -26,7 +31,9 @@ export const ScriptStartCreateImages = (message: string) => {
     }
   }
   
-  ___setSearchText('${message}');
+  if (!window.sessionStorage.getItem('creating')) {
+    ___setSearchText('${message}');
+  }  
   
   `;
 };
@@ -37,12 +44,13 @@ export const ScriptGetImages = () => {
   
   function ___getImages() {
     if (___getImagesCount > 160) {
-      window.ReactNativeWebView?.postMessage(JSON.stringify({ errorGetImages: 'Timeout occurred' }));
+      window.ReactNativeWebView?.postMessage(JSON.stringify({ errorGetImages: 'Get Images Bing timeout occurred' }));
       return;
     }
 
     if (document.querySelector('#girer')) {
       window.ReactNativeWebView?.postMessage(JSON.stringify({ errorGetImages: document.querySelector('#girer').innerText }));
+      return;
     }
 
     if (!document.querySelectorAll('#gir_async img')?.length) {

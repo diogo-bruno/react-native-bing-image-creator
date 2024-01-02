@@ -233,9 +233,9 @@ const BingImageCreator = forwardRef((props: BingImageCreatorProps, ref: any) => 
                 webviewSession?.injectJavaScript(ScriptStartCreateImages(message));
                 return message;
               });
-
-              webviewSession?.injectJavaScript(ScriptGetImages());
             }
+
+            if (responseImagesResolve && logged) webviewSession?.injectJavaScript(ScriptGetImages());
           }}
           onNavigationStateChange={async (event) => {}}
           onError={() => {
